@@ -1,0 +1,9 @@
+[functions]
+  # Dossier des fonctions serverless
+  directory = "netlify/functions/"
+
+# Redirection pour l'API
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
