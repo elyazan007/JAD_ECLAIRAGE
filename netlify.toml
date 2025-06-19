@@ -1,8 +1,11 @@
+# Fichier de configuration Netlify
+
 [build]
-  publish = "."
+  # Dossier des fonctions serverless
   functions = "netlify/functions"
 
+# L'API dyalna
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/api/getProducts"
+  to = "/.netlify/functions/getProducts"
   status = 200
