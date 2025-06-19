@@ -12,12 +12,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("DOM chargé, initialisation de l'application...");
     
     try {
-        // Charger les données des produits
         await loadProducts();
-        
-        // Initialiser l'interface utilisateur
         initUI();
-        
         console.log("Application initialisée avec succès");
     } catch (error) {
         console.error("Erreur lors de l'initialisation de l'application:", error);
@@ -31,24 +27,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
-// Charger les données des produits depuis l'API Netlify Function
+// Charger les données des produits depuis l'API Netlify
 async function loadProducts() {
     try {
-        // Ligne de débogage pour s'assurer que l'appel est effectué
-        console.log("Tentative d'appel à /api/getProducts...");
-        
+        console.log("Tentative d'appel à l'API: /api/getProducts");
+        // Appel à l'API via la redirection configurée dans netlify.toml
         const response = await fetch("/api/getProducts");
         
         if (!response.ok) {
-            // Lancer une erreur avec le statut HTTP pour un meilleur débogage
-            throw new Error(`Erreur HTTP: ${response.status} ${response.statusText}`);
+            throw new Error(`Le serveur a répondu avec une erreur: ${response.status}`);
         }
         
         allProducts = await response.json();
-        console.log(`${allProducts.length} produits chargés depuis l'API`);
+        console.log(`${allProducts.length} produits chargés depuis l'API.`);
     } catch (error) {
-        console.error("Erreur lors du chargement des produits:", error);
-        // Renvoyer une erreur plus descriptive
+        console.error("Erreur dans loadProducts:", error);
         throw new Error("Impossible de charger les données des produits depuis le serveur.");
     }
 }
@@ -66,7 +59,6 @@ function generateCategoryNav() {
     const categoryNav = document.getElementById("category-nav");
     if (!categoryNav) return;
 
-    // Utiliser une structure arborescente pour les catégories
     const categoryTree = {};
     allProducts.forEach(product => {
         if (!product.category) return;
@@ -84,14 +76,17 @@ function generateCategoryNav() {
     const createCategoryElement = (name, data, path) => {
         const item = document.createElement('div');
         item.className = 'category-item';
-        item.innerHTML = `<span>${name} (${data.products.length})</span>`;
+        // Compter tous les produits dans cette branche, y compris les sous-catégories
+        const totalProductsInBranch = data.products.length;
+        item.innerHTML = `<span>${name} (${totalProductsInBranch})</span>`;
 
         if (Object.keys(data.subcategories).length > 0) {
             item.innerHTML += `<span class="toggle-icon">+</span>`;
             const subContainer = document.createElement('div');
             subContainer.className = 'subcategories-container';
             for (const subName in data.subcategories) {
-                subContainer.appendChild(createCategoryElement(subName, data.subcategories[subName], `${path}\\${subName}`));
+                const subPath = path ? `${path}\\${subName}` : subName;
+                subContainer.appendChild(createCategoryElement(subName, data.subcategories[subName], subPath));
             }
             item.appendChild(subContainer);
         }
@@ -121,7 +116,7 @@ function generateCategoryNav() {
         return item;
     };
 
-    categoryNav.innerHTML = ''; // Vider la navigation existante
+    categoryNav.innerHTML = ''; // Vider la navigation
 
     const allProductsItem = document.createElement('div');
     allProductsItem.className = 'category-item active';
@@ -134,8 +129,11 @@ function generateCategoryNav() {
     });
     categoryNav.appendChild(allProductsItem);
 
-    for (const name in categoryTree.Welcome.subcategories) {
-        categoryNav.appendChild(createCategoryElement(name, categoryTree.Welcome.subcategories[name], `Welcome\\${name}`));
+    // Démarrer à partir de "Welcome" mais ne pas l'afficher
+    if (categoryTree.Welcome) {
+        for (const name in categoryTree.Welcome.subcategories) {
+            categoryNav.appendChild(createCategoryElement(name, categoryTree.Welcome.subcategories[name], `Welcome\\${name}`));
+        }
     }
 }
 
@@ -148,12 +146,12 @@ function initSearch() {
     });
 }
 
-// Afficher les produits selon les filtres
+// Afficher les produits
 function displayProducts() {
     const productGrid = document.getElementById("product-grid");
     
     const filteredProducts = allProducts.filter(product => {
-        const categoryMatch = !currentCategory || product.category.startsWith(currentCategory);
+        const categoryMatch = !currentCategory || (product.category && product.category.startsWith(currentCategory));
         const searchMatch = !searchTerm || 
             (product.name && product.name.toLowerCase().includes(searchTerm)) ||
             (product.reference && product.reference.toLowerCase().includes(searchTerm)) ||
@@ -168,7 +166,7 @@ function displayProducts() {
 
     productGrid.innerHTML = filteredProducts.map(product => {
         const isSelected = selectedProducts.some(p => p.id === product.id);
-        const imageUrl = product.imageurl || './placeholder.jpg'; // Note: La base de données utilise 'imageurl' en minuscules
+        const imageUrl = product.imageurl || './placeholder.jpg';
         const price = product.price ? parseFloat(product.price).toFixed(2) : null;
         
         return `
@@ -192,19 +190,15 @@ function displayProducts() {
     addSelectButtonEventListeners();
 }
 
-// Ajouter les écouteurs pour les boutons de sélection
 function addSelectButtonEventListeners() {
-    const selectButtons = document.querySelectorAll(".select-button");
-    selectButtons.forEach(button => {
+    document.querySelectorAll(".select-button").forEach(button => {
         button.addEventListener("click", (e) => {
             e.stopPropagation();
-            const productId = button.getAttribute("data-id");
-            toggleProductSelection(productId);
+            toggleProductSelection(e.target.dataset.id);
         });
     });
 }
 
-// Basculer la sélection d'un produit
 function toggleProductSelection(productId) {
     const product = allProducts.find(p => p.id === productId);
     const index = selectedProducts.findIndex(p => p.id === productId);
@@ -216,70 +210,58 @@ function toggleProductSelection(productId) {
     }
     
     updateSelectedProductsList();
-    displayProducts(); // Rafraîchir la grille pour mettre à jour le style du bouton
+    displayProducts();
 }
 
-// Mettre à jour la liste des produits sélectionnés
 function updateSelectedProductsList() {
-    const selectedProductsList = document.getElementById("selected-products-list");
-    const generateExcelButton = document.getElementById("generate-excel-button");
+    const listContainer = document.getElementById("selected-products-list");
+    const excelButton = document.getElementById("generate-excel-button");
 
     if (selectedProducts.length === 0) {
-        selectedProductsList.innerHTML = `<p>Aucun produit sélectionné.</p>`;
-        generateExcelButton.disabled = true;
+        listContainer.innerHTML = `<p>Aucun produit sélectionné.</p>`;
+        excelButton.disabled = true;
     } else {
-        selectedProductsList.innerHTML = `
+        listContainer.innerHTML = `
             <p>${selectedProducts.length} produit(s) sélectionné(s):</p>
             <ul class="selected-list">
-                ${selectedProducts.map(product => `
+                ${selectedProducts.map(p => `
                     <li class="selected-item">
-                        <span class="selected-name">${product.name}</span>
-                        <button class="remove-button" data-id="${product.id}">×</button>
+                        <span class="selected-name">${p.name}</span>
+                        <button class="remove-button" data-id="${p.id}">×</button>
                     </li>
                 `).join('')}
             </ul>`;
-        generateExcelButton.disabled = false;
+        excelButton.disabled = false;
         
-        addRemoveButtonEventListeners();
+        document.querySelectorAll(".remove-button").forEach(button => {
+            button.addEventListener("click", (e) => {
+                e.stopPropagation();
+                toggleProductSelection(e.target.dataset.id);
+            });
+        });
     }
 }
 
-// Ajouter les écouteurs pour les boutons de suppression
-function addRemoveButtonEventListeners() {
-    const removeButtons = document.querySelectorAll(".remove-button");
-    removeButtons.forEach(button => {
-        button.addEventListener("click", (e) => {
-            e.stopPropagation();
-            const productId = button.getAttribute("data-id");
-            toggleProductSelection(productId);
-        });
-    });
-}
-
-// Initialiser le bouton Excel
 function initExcelButton() {
-    const generateExcelButton = document.getElementById("generate-excel-button");
-    generateExcelButton.addEventListener("click", generateExcel);
+    document.getElementById("generate-excel-button").addEventListener("click", generateExcel);
 }
 
-// Générer le fichier Excel
 function generateExcel() {
     if (selectedProducts.length === 0) return;
 
     try {
-        const excelData = selectedProducts.map(product => ({
-            'Nom': product.name || '',
-            'Référence': product.reference || '',
-            'Description': product.description || '',
-            'Catégorie': product.category ? product.category.replace('Welcome\\', '') : '',
-            'Prix': product.price || ''
+        const excelData = selectedProducts.map(p => ({
+            'Nom': p.name || '',
+            'Référence': p.reference || '',
+            'Description': p.description || '',
+            'Catégorie': p.category ? p.category.replace('Welcome\\', '') : '',
+            'Prix': p.price || ''
         }));
         
         const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Produits");
         XLSX.writeFile(workbook, `liste_produits_${new Date().toISOString().slice(0, 10)}.xlsx`);
-        
     } catch (error) {
         console.error("Erreur Excel:", error);
         alert("Erreur lors de la génération du fichier Excel.");

@@ -1,11 +1,17 @@
-# Fichier de configuration Netlify
+# Fichier de configuration pour Netlify
 
+# Paramètres de build
 [build]
-  # Dossier des fonctions serverless
+  # Dossier où se trouvent les fichiers à publier (le projet entier, car c'est un site statique simple)
+  publish = "."
+  # Dossier où Netlify doit chercher les fonctions serverless
   functions = "netlify/functions"
 
-# L'API dyalna
+# Règles de redirection
 [[redirects]]
-  from = "/api/getProducts"
-  to = "/.netlify/functions/getProducts"
+  # Rediriger toutes les requêtes qui commencent par /api/
+  from = "/api/*"
+  # Vers la fonction Netlify correspondante. :splat est un placeholder pour le reste de l'URL.
+  to = "/.netlify/functions/:splat"
+  # Status 200 signifie que c'est une réécriture, pas une redirection visible par l'utilisateur.
   status = 200

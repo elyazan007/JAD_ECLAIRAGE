@@ -1,54 +1,32 @@
-// Fonction Netlify pour récupérer les produits depuis la base de données NeonDB
-const { Pool } = require('pg');
+// Importation du package @netlify/neon pour une connexion facile à la base de données
+import { neon } from '@netlify/neon';
 
-exports.handler = async function(event, context) {
-  // Configuration CORS
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
-  };
-
-  if (event.httpMethod === 'OPTIONS' ) {
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ message: 'CORS preflight successful' })
-    };
-  }
-
-  // Vérifier si la variable d'environnement est définie
-  if (!process.env.NETLIFY_DATABASE_URL) {
-      return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ message: "Erreur: NETLIFY_DATABASE_URL n'est pas définie." })
-      };
-  }
-
-  const pool = new Pool({
-    connectionString: process.env.NETLIFY_DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
-    }
-  });
-  
+// Le handler principal de la fonction Netlify
+export default async (req, context) => {
   try {
-    const client = await pool.connect();
-    const result = await client.query('SELECT * FROM products ORDER BY name ASC;');
-    client.release();
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(result.rows)
-    };
+    // Exécuter la requête SQL pour récupérer tous les produits, triés par nom
+    // La variable d'environnement NETLIFY_DATABASE_URL est utilisée automatiquement par ce package
+    const products = await neon`SELECT * FROM products ORDER BY name ASC;`;
+
+    // Si tout va bien, retourner une réponse avec le statut 200 (OK)
+    // et la liste des produits au format JSON
+    return new Response(JSON.stringify(products), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*', // Autoriser les requêtes depuis n'importe quelle origine
+      },
+    });
   } catch (error) {
-    console.error('Erreur:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ message: "Erreur interne du serveur.", error: error.message })
-    };
+    // Si une erreur se produit (ex: problème de connexion, table non trouvée, etc.)
+    console.error('Erreur dans la fonction getProducts:', error);
+    
+    // Retourner une réponse d'erreur 500 (Erreur Interne du Serveur)
+    return new Response(JSON.stringify({ message: "Erreur lors de la récupération des produits depuis la base de données.", error: error.message }), {
+      status: 500,
+      headers: { 
+        'Content-Type': 'application/json' 
+      },
+    });
   }
 };
