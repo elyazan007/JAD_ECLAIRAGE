@@ -1,8 +1,7 @@
-[functions]
-  # Dossier des fonctions serverless
-  directory = "netlify/functions/"
+[build]
+  publish = "."
+  functions = "netlify/functions"
 
-# Redirection pour l'API
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
