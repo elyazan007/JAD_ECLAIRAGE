@@ -1,66 +1,27 @@
-// Fonction Netlify pour récupérer les produits depuis la base de données NeonDB
-const { Pool } = require('pg');
+// Importation du package @netlify/neon
+import { neon } from '@netlify/neon';
 
-exports.handler = async function(event, context) {
-  // Configuration CORS pour permettre les requêtes cross-origin
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS'
-  };
-
-  // Répondre immédiatement aux requêtes OPTIONS (pre-flight)
-  if (event.httpMethod === 'OPTIONS' ) {
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ message: 'CORS préflight réussi' })
-    };
-  }
-
-  // Initialiser la connexion à la base de données
-  let client;
+// Définition du handler de la fonction Netlify
+export default async (req, context) => {
   try {
-    // Créer un pool de connexion à la base de données NeonDB
-    const pool = new Pool({
-      connectionString: process.env.NETLIFY_DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false // Nécessaire pour les connexions SSL à NeonDB
-      }
-    });
-
-    // Acquérir un client depuis le pool
-    client = await pool.connect();
-
     // Exécuter la requête SQL pour récupérer tous les produits
-    const result = await client.query('SELECT * FROM products');
-    
-    // Libérer le client
-    client.release();
+    // La variable d'environnement NETLIFY_DATABASE_URL est utilisée automatiquement
+    const products = await neon`SELECT * FROM products ORDER BY name ASC;`;
 
-    // Retourner les produits en format JSON
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify(result.rows)
-    };
+    // Retourner une réponse 200 OK avec les produits au format JSON
+    return new Response(JSON.stringify(products), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*', // Autoriser les requêtes cross-origin
+      },
+    });
   } catch (error) {
-    // Gérer les erreurs
-    console.error('Erreur lors de la récupération des produits:', error);
-    
-    // S'assurer que le client est libéré en cas d'erreur
-    if (client) {
-      client.release();
-    }
-
-    // Retourner une réponse d'erreur
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        message: 'Erreur lors de la récupération des produits',
-        error: error.message
-      })
-    };
+    // En cas d'erreur, retourner une réponse 500 avec le message d'erreur
+    console.error('Erreur:', error);
+    return new Response(JSON.stringify({ message: "Erreur lors de la récupération des produits.", error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 };
